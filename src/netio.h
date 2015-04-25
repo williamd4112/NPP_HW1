@@ -31,6 +31,11 @@ typedef struct Node{
 	struct sockaddr_in addr;
 } Node;
 
+typedef struct FNode{
+	FILE *fp;
+	struct sockaddr_in addr;
+} FNode;
+
 // I/O Function
 int readn(int, char*, size_t);
 int readline(int, char*, size_t);

@@ -4,6 +4,7 @@
 #define BACKLOG 10
 
 void client_receive_file(Node *client, const char *path);
+void client_receive_file_fp(Node *client, const char *path);
 void func_client_proc(int listenfd, int clifd, struct sockaddr *cliaddr, void *args[]);
 
 int main(int argc, char *argv[]){
@@ -45,12 +46,50 @@ void func_client_proc(int listenfd, int clifd, struct sockaddr *cliaddr, void *a
     client_receive_file(&client, path);
 }
 
+void client_receive_file_fp(Node *client, const char *path){
+	FILE *wrfp = fopen(path, "wb");
+	if(wrfp == NULL){
+		perror("func_receive_file: file open error");
+		close(client->fd);
+		return;
+	}
+
+	FILE *clifp = fdopen(client->fd, "rb");
+	if(clifp == NULL){
+		perror("func_receive_file: file open error");
+		close(client->fd);
+		return;
+	}
+
+	char ip_str[IPV4_ADDRLEN + 1];
+	printf("Receiving file from ... %s:%d\n",
+		inet_ntop(AF_INET, &client->addr.sin_addr, ip_str, sizeof(ip_str)),
+		(int)client->addr.sin_port);
+
+	int n;
+	char buff[MAXBUFF];
+	while((n = fread(buff, sizeof(char), sizeof(buff), clifp)) > 0){
+		int wn = fwrite(buff, sizeof(char), n, wrfp);
+		fflush(wrfp);
+		if(wn < 0){
+			perror("func_receive_file: write error\n");
+			fclose(clifp);
+			fclose(wrfp);
+			return;
+		}else{
+			printf("Write to %d byte to file descriptor %d\n",wn, fileno(wrfp));
+		}
+	}
+	printf("Receiving compeleted\n");
+	fclose(clifp);
+	fclose(wrfp);
+}
+
 void client_receive_file(Node *client, const char *path){
 	int wrfd = open(path, O_WRONLY | O_CREAT, 0644);
 	if(wrfd < 0){
 		perror("func_receive_file: file open error");
 		close(client->fd);
-		close(wrfd);
 		return;
 	}
 

@@ -2,7 +2,7 @@
 
 #define SERV_PORT 8080
 
-void func_send_file(Node *server, char *path);
+void func_send_file(FNode *server, char *path);
 
 int main(int argc, char *argv[]){
 	
@@ -25,39 +25,51 @@ int main(int argc, char *argv[]){
 
     Connect(connfd, (SA*)&servaddr);
 
-    Node server;
-    server.fd = connfd;
+    FNode server;
+    FILE *fp = fdopen(connfd, "wb");
+    if(fp == NULL){
+    	perror("main: failed to fdopen the connfd.\n");
+    	close(connfd);
+    	exit(-1);
+    }
+
+    server.fp = fp;
     server.addr = servaddr;
     func_send_file(&server, argv[2]);
-
+    fclose(server.fp);
 	return 0;
 }
 
-void func_send_file(Node *server, char *path){
-	int rdfd = open(path, O_RDONLY);
-	if(rdfd < 0){
-		perror("func_receive_file: file open error");
-		exit(-1);
+void func_send_file(FNode *server, char *path){
+	// int rdfd = open(path, O_RDONLY);
+	// if(rdfd < 0){
+	// 	perror("func_receive_file: file open error");
+	// 	exit(-1);
+	// }
+	FILE *rdfp = fopen(path, "rb");
+	if(rdfp == NULL){
+		perror("func_send_file: failed to fopen\n");
+		return;
 	}
 
 	char ip_str[IPV4_ADDRLEN + 1];
-	printf("Sending file to ... %s\n",
-		inet_ntop(AF_INET, &server->addr.sin_addr, ip_str, sizeof(ip_str)));
+	printf("Sending file to ... %s:%d\n",
+		inet_ntop(AF_INET, &server->addr.sin_addr, ip_str, sizeof(ip_str)),
+		server->addr.sin_port);
 
 	int n;
 	char buff[MAXBUFF];
-	while((n = read(rdfd, buff, sizeof(buff))) > 0){
-		int wn = write(server->fd, buff, n);
+	while((n = fread(buff, sizeof(char), sizeof(buff), rdfp)) > 0){
+		int wn = fwrite(buff, sizeof(char), n, server->fp);
+		fflush(server->fp);
 		if(wn < 0){
 			perror("func_send_file: write error");
-			close(server->fd);
-			close(rdfd);
+			fclose(rdfp);
 			return;
 		}else{
-			printf("Write to %d byte to file descriptor %d\n",wn, server->fd);
+			printf("Write %d byte\n",wn);
 		}
 	}
 	printf("Sending compeleted\n");
-	close(server->fd);
-	close(rdfd);
+	fclose(rdfp);
 }
