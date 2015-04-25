@@ -3,7 +3,8 @@
 #define SERV_PORT 8080
 #define BACKLOG 10
 
-void func_receive_file(Node *client, const char *path);
+void client_receive_file(Node *client, const char *path);
+void func_client_proc(int listenfd, int clifd, struct sockaddr *cliaddr, void *args[]);
 
 int main(int argc, char *argv[]){
 	
@@ -15,14 +16,8 @@ int main(int argc, char *argv[]){
 	// Create Socket
 	int listenfd = Socket(AF_INET, SOCK_STREAM, 0);
 
-	// Create address struct
 	struct sockaddr_in servaddr;
-	bzero(&servaddr, sizeof(servaddr));
-    servaddr.sin_family = AF_INET; // IPV4
-    servaddr.sin_addr.s_addr = htonl(INADDR_ANY); // All interface
-    servaddr.sin_port = htons(SERV_PORT); // Port number
-    printf("Create address struct...ok\n");
-    
+	Address(&servaddr, AF_INET, htonl(INADDR_ANY), htons(SERV_PORT));
     Bind(listenfd, (SA*)&servaddr);
 	Listen(listenfd, BACKLOG);
 
@@ -30,17 +25,8 @@ int main(int argc, char *argv[]){
     struct sockaddr_in cliaddr;
     socklen_t clilen = sizeof(cliaddr);
 
-    int clifd = accept(listenfd, (SA*)&cliaddr, &clilen);    
-    if(clifd < 0){
-    	perror("main: accept error\n");
-    	exit(-1);
-    }
-
-    Node client;
-    client.fd = clifd;
-    client.addr = cliaddr;
-
-    func_receive_file(&client, argv[1]);
+    void *args[] = {argv[1]};
+    Accept(listenfd, (SA*)&cliaddr, func_client_proc, ACCEPT_ONCE, args);
 
     printf("Server terminated\n");
     close(listenfd);
@@ -48,7 +34,18 @@ int main(int argc, char *argv[]){
 	return 0;
 }
 
-void func_receive_file(Node *client, const char *path){
+
+void func_client_proc(int listenfd, int clifd, struct sockaddr *cliaddr, void *args[]){
+	char *path = (char*)args[0];
+
+	Node client;
+    client.fd = clifd;
+    client.addr = *((struct sockaddr_in*)cliaddr);
+
+    client_receive_file(&client, path);
+}
+
+void client_receive_file(Node *client, const char *path){
 	int wrfd = open(path, O_WRONLY | O_CREAT, 0644);
 	if(wrfd < 0){
 		perror("func_receive_file: file open error");

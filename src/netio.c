@@ -43,6 +43,16 @@ int Socket(int domain, int type, int protocol){
     return sockfd;
 }
 
+void Address(struct sockaddr_in* sock_struct, sin_family family, sin_addr addr, sin_port port){
+    bzero(sock_struct, sizeof(*sock_struct));
+    sock_struct->sin_family = family; 
+    sock_struct->sin_addr.s_addr = addr; 
+    sock_struct->sin_port = port;
+#ifdef LOG
+    printf("Create address struct...ok\n");
+#endif
+}
+
 int Connect(int sockfd, struct sockaddr* addr){
     int flag;
     if((flag = connect(sockfd, addr, sizeof(*addr))) < 0){
@@ -79,7 +89,7 @@ int Listen(int listenfd, int backlog){
     return flag;
 }
 
-void Accept(int listenfd, struct sockaddr *cliaddr, Handler handler, int option){
+void Accept(int listenfd, struct sockaddr *cliaddr, Handler handler, int option, void *args[]){
 #ifdef LOG
     printf("Accepting...\n");
 #endif
@@ -90,7 +100,7 @@ void Accept(int listenfd, struct sockaddr *cliaddr, Handler handler, int option)
             if(errno == EINTR) continue;
             perror("netio: failed to accept\n");
         }else{
-            handler(listenfd, connfd, cliaddr);
+            handler(listenfd, connfd, cliaddr, args);
         }
 
         if(option == ACCEPT_ONCE) break;

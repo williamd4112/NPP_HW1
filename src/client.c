@@ -14,26 +14,16 @@ int main(int argc, char *argv[]){
 	printf("Client started\n");
 
 	// Create Socket
-	int connfd = socket(AF_INET, SOCK_STREAM, 0);
-	if(connfd < 0){
-		perror("main: socket create error.");
-		exit(-1);
-	}
-	printf("Create socket...ok\n");
+	int connfd = Socket(AF_INET, SOCK_STREAM, 0);
 
-	// Address struct
+	// Address Transformation
+	sin_addr addr;
+	inet_pton(AF_INET, argv[1], &addr);
+
 	struct sockaddr_in servaddr;
-	servaddr.sin_family = AF_INET;
-	servaddr.sin_port = htons(SERV_PORT);
-	inet_pton(AF_INET, argv[1], &servaddr.sin_addr);
-	printf("Create socket struct...ok\n");
+	Address(&servaddr, AF_INET, addr, htons(SERV_PORT));
 
-    // Connect
-    int flag = connect(connfd, (SA*)&servaddr, sizeof(servaddr));
-    if(flag < 0){
-        perror("main: connect error\n");
-        exit(-1);
-    }
+    Connect(connfd, (SA*)&servaddr);
 
     Node server;
     server.fd = connfd;
