@@ -1,17 +1,20 @@
 #include "netio.h"
+#include "filetransfer.h"
 
-#define SERV_PORT 8080
+extern char output_path[MAXFILENAME];
+const char *CLIENT_OUTPUT_PATH_DEFAULT = "./download/";
+const char *MAINMENU = "cd [Directory]\nls\nu [filename]\nd [filename]\nq";
 
-void func_send_file(FNode *server, char *path);
+void func_cmd_txt(node *server);
+void func_cliinfo(node *server);
+void func_receive_dir(node *server);
 
 int main(int argc, char *argv[]){
-	
-	if(argc < 3){
-		printf("usage client <IP Address> <Send file name>\n");
+	signal(SIGCHLD, sig_chld);
+	if(argc < 2){
+		printf("usage client <IP Address>\n");
 		exit(-1);
 	}
-
-	printf("Client started\n");
 
 	// Create Socket
 	int connfd = Socket(AF_INET, SOCK_STREAM, 0);
@@ -22,54 +25,88 @@ int main(int argc, char *argv[]){
 
 	struct sockaddr_in servaddr;
 	Address(&servaddr, AF_INET, addr, htons(SERV_PORT));
-
     Connect(connfd, (SA*)&servaddr);
 
-    FNode server;
-    FILE *fp = fdopen(connfd, "wb");
-    if(fp == NULL){
-    	perror("main: failed to fdopen the connfd.\n");
-    	close(connfd);
-    	exit(-1);
-    }
+    node server = {connfd, servaddr};
 
-    server.fp = fp;
-    server.addr = servaddr;
-    func_send_file(&server, argv[2]);
-    fclose(server.fp);
+    void *args[1];
+    strncpy(output_path, CLIENT_OUTPUT_PATH_DEFAULT, sizeof(output_path));
+    init_dataconn((int)servaddr.sin_port + 1, DATACHANNEL_BACKLOG, handler_datachannel, args);
+
+    func_cliinfo(&server);
+    func_cmd_txt(&server);
+    close(server.fd);
 	return 0;
 }
 
-void func_send_file(FNode *server, char *path){
-	// int rdfd = open(path, O_RDONLY);
-	// if(rdfd < 0){
-	// 	perror("func_receive_file: file open error");
-	// 	exit(-1);
-	// }
-	FILE *rdfp = fopen(path, "rb");
-	if(rdfp == NULL){
-		perror("func_send_file: failed to fopen\n");
-		return;
+void func_cliinfo(node *server){
+	int data_port = (int)server->addr.sin_port + 1;
+	printf("Send client info\n");
+	int wn = write(server->fd, &data_port, sizeof(data_port));
+	if(wn < 0){
+		perror("func_cliinfo: write error.");
+		close(server->fd);
+		exit(-1);
 	}
+}
 
+void func_cmd_txt(node *server){
 	char ip_str[IPV4_ADDRLEN + 1];
-	printf("Sending file to ... %s:%d\n",
+	printf("Connected to server %s:%d\n",
 		inet_ntop(AF_INET, &server->addr.sin_addr, ip_str, sizeof(ip_str)),
 		server->addr.sin_port);
 
-	int n;
-	char buff[MAXBUFF];
-	while((n = fread(buff, sizeof(char), sizeof(buff), rdfp)) > 0){
-		int wn = fwrite(buff, sizeof(char), n, server->fp);
-		fflush(server->fp);
-		if(wn < 0){
-			perror("func_send_file: write error");
-			fclose(rdfp);
-			return;
-		}else{
-			printf("Write %d byte\n",wn);
+	struct pollfd pfds[2];
+	pfds[0].fd = fileno(stdin);
+	pfds[0].events = POLLRDNORM;
+	pfds[1].fd = server->fd;
+	pfds[1].events = POLLRDNORM;
+
+	int nready;
+	printf("\nOptions:\n%s\n",MAINMENU);
+	while(1){
+		nready = poll(pfds, 2, -1);
+		
+		// Stdin ready to read
+		if(pfds[0].revents & POLLRDNORM){
+			char cmd[CMDLEN];
+			char *path;
+			fetch_cmd(cmd, CMDLEN, stdin);
+			int cmdid = isValid_cmd(cmd);
+			if(cmdid >= 0) {
+				int wn = write(server->fd, cmd, strlen(cmd));
+				if(wn < 0){
+					perror("func_cmd_txt: write error\n");
+					continue;
+				}
+
+				switch(cmdid){
+					case LS: 
+						break;
+					case U:
+						if((path = fetch_addr(cmd)) != NULL)
+							send_file(server, SERV_DATA_PORT, path);
+						else
+							printf("usage: u [filename]\n");
+						break;
+					default:
+						break;
+				}
+			}
+			printf("\nOptions:\n%s\n",MAINMENU);
+		}
+
+		// Server ready to read
+		if(pfds[1].revents & (POLLRDNORM | POLLERR)){
+			char buff[MAXLINE];
+			int n = read(server->fd, buff, sizeof(buff));
+			if(n < 0){
+				perror("Server terminated\n");
+				close(server->fd);
+				return;
+			}
+			buff[n] = '\0';
+			printf("%s",buff);
 		}
 	}
-	printf("Sending compeleted\n");
-	fclose(rdfp);
 }

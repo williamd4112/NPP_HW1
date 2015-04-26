@@ -1,18 +1,20 @@
 #include "netio.h"
+#include "filetransfer.h"
 
-#define SERV_PORT 8080
 #define BACKLOG 10
 
-void client_receive_file(Node *client, const char *path);
-void client_receive_file_fp(Node *client, const char *path);
+extern char output_path[MAXFILENAME];
+const char *SERV_OUTPUT_PATH_DEFAULT = "./upload/";
+
+void client_receive_cmd(Client *client);
+void client_receive_info(Client *client);
+void client_send_dir(node *client);
+void client_send_file(Client *client, char *path);
+
 void func_client_proc(int listenfd, int clifd, struct sockaddr *cliaddr, void *args[]);
 
 int main(int argc, char *argv[]){
-	
-	if(argc < 2){
-		printf("usage server <Output path>");
-		exit(1);
-	}
+	signal(SIGCHLD, sig_chld);
 
 	// Create Socket
 	int listenfd = Socket(AF_INET, SOCK_STREAM, 0);
@@ -27,7 +29,10 @@ int main(int argc, char *argv[]){
     socklen_t clilen = sizeof(cliaddr);
 
     void *args[] = {argv[1]};
-    Accept(listenfd, (SA*)&cliaddr, func_client_proc, ACCEPT_ONCE, args);
+    
+    strncpy(output_path, SERV_OUTPUT_PATH_DEFAULT, sizeof(output_path));
+    init_dataconn(SERV_DATA_PORT, BACKLOG, handler_datachannel, args);
+    Accept(listenfd, (SA*)&cliaddr, func_client_proc, ACCEPT_FOREVER | DISPATCH_CHILD, args);
 
     printf("Server terminated\n");
     close(listenfd);
@@ -35,82 +40,92 @@ int main(int argc, char *argv[]){
 	return 0;
 }
 
-
 void func_client_proc(int listenfd, int clifd, struct sockaddr *cliaddr, void *args[]){
-	char *path = (char*)args[0];
+    // Create Socket
+    node clind = {clifd, (*(SIN*)cliaddr)};
+    Client client;
+    client.nd = clind;
+    client.data_port = -1;
+    strncpy(client.cur_dir, ".", sizeof(client.cur_dir));
 
-	Node client;
-    client.fd = clifd;
-    client.addr = *((struct sockaddr_in*)cliaddr);
-
-    client_receive_file(&client, path);
+    client_receive_info(&client);
+    client_receive_cmd(&client);
 }
 
-void client_receive_file_fp(Node *client, const char *path){
-	FILE *wrfp = fopen(path, "wb");
-	if(wrfp == NULL){
-		perror("func_receive_file: file open error");
-		close(client->fd);
-		return;
-	}
+void client_send_dir(node *client){
+    char *path = ".";
+    DIR *d;
+    struct dirent *dir;
+    d = opendir(path);
+    if(d){
+        char buff[MAXLINE];
+        while((dir = readdir(d)) != NULL){
+            if(strcmp(dir->d_name, ".") != 0 && strcmp(dir->d_name, "..") != 0){
+                snprintf(buff, MAXLINE, "%s/%s\n",path, dir->d_name);
+                write(client->fd, buff, strlen(buff));
+            }
+        }
+        closedir(d);
+    }   
+}
 
-	FILE *clifp = fdopen(client->fd, "rb");
-	if(clifp == NULL){
-		perror("func_receive_file: file open error");
-		close(client->fd);
-		return;
+
+void client_receive_info(Client *client){
+	char ip_str[IPV4_ADDRLEN + 1];
+	printf("Receiving client info from ... %s:%d\n",
+		inet_ntop(AF_INET, &client->nd.addr.sin_addr, ip_str, sizeof(ip_str)),
+		(int)client->nd.addr.sin_port);
+
+	int clidata_port;
+	int n;
+	if((n = read(client->nd.fd, &clidata_port, sizeof(&clidata_port))) <= 0){
+		perror("client_receive_info: failed to receive client info.\n");
+		close(client->nd.fd);
+		exit(1);
 	}
+	printf("Client data port : %d\n",clidata_port);
+	client->data_port = clidata_port;
+}
+
+void client_receive_cmd(Client *client){
 
 	char ip_str[IPV4_ADDRLEN + 1];
-	printf("Receiving file from ... %s:%d\n",
-		inet_ntop(AF_INET, &client->addr.sin_addr, ip_str, sizeof(ip_str)),
-		(int)client->addr.sin_port);
+	printf("Receiving instruction from ... %s:%d\n",
+		inet_ntop(AF_INET, &client->nd.addr.sin_addr, ip_str, sizeof(ip_str)),
+		(int)client->nd.addr.sin_port);
 
+	char cmd[CMDLEN];
 	int n;
-	char buff[MAXBUFF];
-	while((n = fread(buff, sizeof(char), sizeof(buff), clifp)) > 0){
-		int wn = fwrite(buff, sizeof(char), n, wrfp);
-		fflush(wrfp);
-		if(wn < 0){
-			perror("func_receive_file: write error\n");
-			fclose(clifp);
-			fclose(wrfp);
-			return;
-		}else{
-			printf("Write to %d byte to file descriptor %d\n",wn, fileno(wrfp));
+	int state = 1; // Enable
+	while((n = read(client->nd.fd, cmd, CMDLEN)) > 0 && state > 0){
+		cmd[n] = '\0';
+		char* path;
+		int cmdid = isValid_cmd(cmd);
+		if(cmdid >= 0) {
+			switch(cmdid){
+				case LS: 
+					client_send_dir(&client->nd);
+					break;
+				case U:
+					break;
+				case D:
+					if((path = fetch_addr(cmd)) != NULL)
+						send_file(&client->nd, client->data_port, path);
+					else
+						printf("usage: u [filename]\n");
+					break;
+				case Q:
+					printf("Client quit %s:%d\n",ip_str, (int)client->nd.addr.sin_port);
+					state = 0;
+					break;
+				default:
+					break;
+			}
 		}
 	}
-	printf("Receiving compeleted\n");
-	fclose(clifp);
-	fclose(wrfp);
+
+	printf("Client disconnected %s:%d\n",ip_str, (int)client->nd.addr.sin_port);
+	close(client->nd.fd);
 }
 
-void client_receive_file(Node *client, const char *path){
-	int wrfd = open(path, O_WRONLY | O_CREAT, 0644);
-	if(wrfd < 0){
-		perror("func_receive_file: file open error");
-		close(client->fd);
-		return;
-	}
 
-	char ip_str[IPV4_ADDRLEN + 1];
-	printf("Receiving file from ... %s\n",
-		inet_ntop(AF_INET, &client->addr.sin_addr, ip_str, sizeof(ip_str)));
-	
-	int n;
-	char buff[MAXBUFF];
-	while((n = read(client->fd, buff, sizeof(buff))) > 0){
-		int wn = write(wrfd, buff, n);
-		if(wn < 0){
-			perror("func_receive_file: write error\n");
-			close(client->fd);
-			close(wrfd);
-			return;
-		} else{
-			printf("Write to %d byte to file descriptor %d\n",wn, wrfd);
-		}
-	}
-	printf("Receiving compeleted\n");
-	close(client->fd);
-	close(wrfd);
-}

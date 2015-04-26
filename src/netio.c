@@ -89,6 +89,16 @@ int Listen(int listenfd, int backlog){
     return flag;
 }
 
+void sig_chld(int signo){
+    pid_t pid;
+    int stat;
+    
+    while((pid = waitpid(-1, &stat, WNOHANG)) > 0)
+        printf("Child %d terminated\n",pid);
+
+    return;
+}
+
 void Accept(int listenfd, struct sockaddr *cliaddr, Handler handler, int option, void *args[]){
 #ifdef LOG
     printf("Accepting...\n");
@@ -100,9 +110,34 @@ void Accept(int listenfd, struct sockaddr *cliaddr, Handler handler, int option,
             if(errno == EINTR) continue;
             perror("netio: failed to accept\n");
         }else{
-            handler(listenfd, connfd, cliaddr, args);
+            if((option & 0x2) == DISPATCH_CHILD){
+                pid_t childpid;
+                if((childpid = fork()) == -1)
+                    perror("netio_Accept: failed to fork\n");
+                else if(childpid == 0){
+                    close(listenfd);
+                    handler(listenfd, connfd, cliaddr, args);
+                    exit(0);
+                }
+            }else{
+                handler(listenfd, connfd, cliaddr, args);
+            }
         }
 
-        if(option == ACCEPT_ONCE) break;
+        if((option & 0x0) == ACCEPT_ONCE) break;
     }
+}
+
+fnode* FNode(fnode *node, int fd, struct sockaddr_in *addr){
+    FILE *fp = fdopen(fd, "wb");
+    if(fp == NULL){
+        perror("netio: failed to fdopen the connfd.\n");
+        close(fd);
+        return NULL;
+    }
+
+    node->fp = fp;
+    node->addr = *addr;
+
+    return node;
 }
