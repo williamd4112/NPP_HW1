@@ -23,7 +23,7 @@
 
 typedef struct Client{
 	struct node nd;
-	int data_port;
+	unsigned short data_port;
 	char cur_dir[MAXFILENAME];
 }Client;
 
@@ -34,9 +34,10 @@ typedef struct Header{
 }Header;
 
 pid_t init_dataconn(int port, int backlog, Handler handler_datachannel, void *args[]);
-void create_sender_node(node *recv_node, sin_addr *addr, int port);
+void create_sender_node(node *recv_node, sin_addr *addr, unsigned short port);
+void create_data_node(node *data_node, int backlog, Handler handler_datachannel, void *args[]);
 void receive_file(node*, Header*, char*);
-void send_file(node*, int port, char*);
+void send_file(node*, unsigned short port, char*);
 void handler_datachannel(int listenfd, int clifd, struct sockaddr *cliaddr, void *args[]);
 int isValid_cmd(char*);
 char *fetch_cmd(char*, size_t, FILE*);

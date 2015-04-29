@@ -16,6 +16,39 @@ int isValid_cmd(char *cmd){
 	return 0;
 }
 
+void create_data_node(node *data_node, int backlog, Handler handler_datachannel, void *args[]){
+    pid_t childpid;
+   
+   	int listenfd_data = Socket(AF_INET, SOCK_STREAM, 0);
+    datachannel_fd = listenfd_data;
+
+	//struct sockaddr_in servaddr_data;
+	Address(&data_node->addr, AF_INET, htonl(INADDR_ANY), 0); // any port
+    Bind(listenfd_data, (SA*)&data_node->addr);
+	Listen(listenfd_data, backlog);
+
+	socklen_t len = sizeof(data_node->addr);
+	if (getsockname(listenfd_data, (SA*)&data_node->addr, &len) == -1){
+    	perror("init_dataconn_client_getsockname():");
+    	exit(-1);
+	}
+
+    if((childpid = fork()) == -1){
+        perror("init_dataconn: failed to fork\n");
+        exit(-1);
+    }
+    else if(childpid == 0){
+    	// Accept connection
+    	struct sockaddr_in cliaddr_data;
+    	socklen_t clilen_data = sizeof(cliaddr_data);
+
+    	Accept(listenfd_data, (SA*)&cliaddr_data,handler_datachannel, ACCEPT_FOREVER | DISPATCH_CHILD, args);
+    	close(listenfd_data);
+    	exit(0);
+    }
+
+}
+
 pid_t init_dataconn(int port, int backlog, Handler handler_datachannel, void *args[]){
     pid_t childpid;
    
@@ -103,7 +136,7 @@ void receive_file(node *client, Header *header, char *path_prefix){
 	close(wrfd);
 }
 
-void send_file(node *server, int port, char *path){
+void send_file(node *server, unsigned short port, char *path){
 	node server_data;
 	create_sender_node(&server_data, &server->addr.sin_addr.s_addr, port);
 
@@ -164,7 +197,7 @@ void send_file(node *server, int port, char *path){
 	close(rdfd);
 }
 
-void create_sender_node(node *sender_node, sin_addr *addr, int port){
+void create_sender_node(node *sender_node, sin_addr *addr, unsigned short port){
 	sender_node->fd = Socket(AF_INET, SOCK_STREAM, 0);
 	Address(&sender_node->addr, AF_INET, *addr, htons(port));
     Connect(sender_node->fd, (SA*)&sender_node->addr);

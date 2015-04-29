@@ -13,6 +13,7 @@ const char *SERV_OUTPUT_PATH_DEFAULT = "./upload/";
 
 void client_receive_cmd(Client *client);
 void client_receive_info(Client *client);
+void client_send_info(Client *client);
 void client_send_dir(node *client);
 void client_send_file(Client *client, char *path);
 void client_send_msg(node *client, char *msg);
@@ -20,23 +21,37 @@ void client_send_msg(node *client, char *msg);
 void func_client_proc(int listenfd, int clifd, struct sockaddr *cliaddr, void *args[]);
 
 int state = WAIT;
+unsigned short serv_port = 0, serv_data_port;
 
 int main(int argc, char *argv[]){
+	if(argc < 2) {
+		printf("usage:./server [PORT]\n");
+		exit(0);
+	}
+
+	int flag = mkdir(SERV_OUTPUT_PATH_DEFAULT, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+	if(flag == 0) {
+		char cwd[MAXFILENAME];
+		getcwd(cwd, sizeof(cwd));
+		printf("Create Download Directory at: %s\n",cwd);
+	}
+
+	serv_port = atoi(argv[1]);
+
+
 	signal(SIGCHLD, sig_chld);
 
 	// Create Socket
 	int listenfd = Socket(AF_INET, SOCK_STREAM, 0);
 
 	struct sockaddr_in servaddr;
-	int flag = 1;
-	
+	flag = 1;
 	if(setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, (char*)&flag, sizeof(int)) < 0){
 		perror("Data Channel initialization error\n");
 		exit(-1);
-	}else
-		puts("Server instruction Channel: Set Resue addr ok\n");
+	}
 
-	Address(&servaddr, AF_INET, htonl(INADDR_ANY), htons(SERV_PORT));
+	Address(&servaddr, AF_INET, htonl(INADDR_ANY), htons(serv_port));
     Bind(listenfd, (SA*)&servaddr);
 	Listen(listenfd, BACKLOG);
 
@@ -47,7 +62,13 @@ int main(int argc, char *argv[]){
     void *args[] = {argv[1]};
     
     strncpy(output_path, SERV_OUTPUT_PATH_DEFAULT, sizeof(output_path));
-    init_dataconn(SERV_DATA_PORT, BACKLOG, handler_datachannel, args);
+    
+    node data_node;
+   	create_data_node(&data_node, DATACHANNEL_BACKLOG, handler_datachannel, args);
+   	serv_data_port = ntohs(data_node.addr.sin_port);
+    // init_dataconn(serv_data_port, BACKLOG, handler_datachannel, args);
+    printf("Serv_Port: %u\n",serv_port);
+	printf("Serv_Data_Port: %u\n",serv_data_port);
     Accept(listenfd, (SA*)&cliaddr, func_client_proc, ACCEPT_FOREVER | DISPATCH_CHILD, args);
 
     printf("Server terminated\n");
@@ -65,6 +86,7 @@ void func_client_proc(int listenfd, int clifd, struct sockaddr *cliaddr, void *a
     strncpy(client.cur_dir, ".", sizeof(client.cur_dir));
 
     client_receive_info(&client);
+    client_send_info(&client);
     client_receive_cmd(&client);
 }
 
@@ -98,20 +120,29 @@ void client_send_msg(node *client, char *msg){
 }
 
 void client_receive_info(Client *client){
+#ifdef LOG
 	char ip_str[IPV4_ADDRLEN + 1];
 	printf("Receiving client info from ... %s:%d\n",
 		inet_ntop(AF_INET, &client->nd.addr.sin_addr, ip_str, sizeof(ip_str)),
 		(int)client->nd.addr.sin_port);
+#endif
 
-	int clidata_port;
 	int n;
-	if((n = read(client->nd.fd, &clidata_port, sizeof(&clidata_port))) <= 0){
+	if((n = read(client->nd.fd, &client->data_port, sizeof(client->data_port))) <= 0){
 		perror("client_receive_info: failed to receive client info.\n");
 		close(client->nd.fd);
 		exit(1);
 	}
-	printf("Client data port : %d\n",clidata_port);
-	client->data_port = clidata_port;
+	printf("Client data port: %hu\n",client->data_port);
+}
+
+void client_send_info(Client *client){
+	int wn = write(client->nd.fd, &serv_data_port, sizeof(serv_data_port));
+	if(wn <= 0) {
+		perror("client_send_info: failed to send server info.\n");
+		close(client->nd.fd);
+		exit(1);
+	}
 }
 
 void client_receive_cmd(Client *client){
