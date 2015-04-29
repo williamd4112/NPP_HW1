@@ -1,15 +1,23 @@
 #include "netio.h"
 #include "filetransfer.h"
 
+#define WAIT_CMD 0
+#define WAIT_SERVER 1
+
 extern char output_path[MAXFILENAME];
+extern int datachannel_fd;
 const char *CLIENT_OUTPUT_PATH_DEFAULT = "./download/";
 const char *MAINMENU = "cd [Directory]\nls\nu [filename]\nd [filename]\nq";
 
 void func_cmd_txt(node *server);
 void func_cliinfo(node *server);
+void func_mkdir();
 void func_receive_dir(node *server);
 
+int state = WAIT_CMD;
+
 int main(int argc, char *argv[]){
+
 	signal(SIGCHLD, sig_chld);
 	if(argc < 2){
 		printf("usage client <IP Address>\n");
@@ -31,12 +39,26 @@ int main(int argc, char *argv[]){
 
     void *args[1];
     strncpy(output_path, CLIENT_OUTPUT_PATH_DEFAULT, sizeof(output_path));
-    init_dataconn((int)servaddr.sin_port + 1, DATACHANNEL_BACKLOG, handler_datachannel, args);
+    
+   	pid_t  data_proc_id = init_dataconn(((int)(servaddr.sin_port)) + 1, DATACHANNEL_BACKLOG, handler_datachannel, args);
+   	printf("Data process: %d\n",data_proc_id);
 
+   	func_mkdir();
     func_cliinfo(&server);
     func_cmd_txt(&server);
     close(server.fd);
+    kill(data_proc_id, SIGKILL);
+
 	return 0;
+}
+
+void func_mkdir(){
+	int flag = mkdir(CLIENT_OUTPUT_PATH_DEFAULT, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+	if(flag == 0) {
+		char cwd[MAXFILENAME];
+		getcwd(cwd, sizeof(cwd));
+		printf("Create Download Directory at: %s\n",cwd);
+	}
 }
 
 void func_cliinfo(node *server){
@@ -54,7 +76,7 @@ void func_cmd_txt(node *server){
 	char ip_str[IPV4_ADDRLEN + 1];
 	printf("Connected to server %s:%d\n",
 		inet_ntop(AF_INET, &server->addr.sin_addr, ip_str, sizeof(ip_str)),
-		server->addr.sin_port);
+		SERV_PORT);
 
 	struct pollfd pfds[2];
 	pfds[0].fd = fileno(stdin);
@@ -62,17 +84,37 @@ void func_cmd_txt(node *server){
 	pfds[1].fd = server->fd;
 	pfds[1].events = POLLRDNORM;
 
-	int nready;
+	int nready = 2;
+	int state = 1;
 	printf("\nOptions:\n%s\n",MAINMENU);
 	while(1){
-		nready = poll(pfds, 2, -1);
+		poll(pfds, nready, -1);
 		
+		// Server ready to read
+		if(pfds[1].revents & (POLLRDNORM | POLLERR)){
+			char buff[MAXLINE];
+			int n = read(server->fd, buff, sizeof(buff));
+			if(n <= 0){
+				printf("Server terminated\n");
+				close(server->fd);
+				nready--;
+				return;
+			}
+			buff[n] = '\0';
+			printf("%s",buff);
+		}
 		// Stdin ready to read
-		if(pfds[0].revents & POLLRDNORM){
+		else if(pfds[0].revents & POLLRDNORM){
 			char cmd[CMDLEN];
 			char *path;
-			fetch_cmd(cmd, CMDLEN, stdin);
-			int cmdid = isValid_cmd(cmd);
+			printf("\nOptions:\n%s\n",MAINMENU);
+
+			if(fetch_cmd(cmd, CMDLEN, stdin) == NULL){
+				close(fileno(stdin));
+				nready--;
+			}
+
+			int cmdid = isValid_cmd(cmd); 
 			if(cmdid >= 0) {
 				int wn = write(server->fd, cmd, strlen(cmd));
 				if(wn < 0){
@@ -89,24 +131,18 @@ void func_cmd_txt(node *server){
 						else
 							printf("usage: u [filename]\n");
 						break;
+					case D:
+						break;
+					case Q:
+						printf("Quit\n");
+						close(server->fd);
+						return;
 					default:
 						break;
 				}
 			}
-			printf("\nOptions:\n%s\n",MAINMENU);
 		}
 
-		// Server ready to read
-		if(pfds[1].revents & (POLLRDNORM | POLLERR)){
-			char buff[MAXLINE];
-			int n = read(server->fd, buff, sizeof(buff));
-			if(n < 0){
-				perror("Server terminated\n");
-				close(server->fd);
-				return;
-			}
-			buff[n] = '\0';
-			printf("%s",buff);
-		}
+
 	}
 }

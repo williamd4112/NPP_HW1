@@ -1,8 +1,11 @@
 #include "filetransfer.h"
 
 const char *VALIDCMDS[] = {"cd", "ls", "u", "d", "q"};
+const char ACK = 0x1;
+const char NAK = 0X0;
 
 char output_path[MAXFILENAME] = "./";
+int datachannel_fd;
 
 int isValid_cmd(char *cmd){
 	int i;
@@ -13,9 +16,9 @@ int isValid_cmd(char *cmd){
 	return 0;
 }
 
-void init_dataconn(int port, int backlog, Handler handler_datachannel, void *args[]){
+pid_t init_dataconn(int port, int backlog, Handler handler_datachannel, void *args[]){
     pid_t childpid;
-    
+   
     if((childpid = fork()) == -1){
         perror("init_dataconn: failed to fork\n");
         exit(-1);
@@ -23,6 +26,7 @@ void init_dataconn(int port, int backlog, Handler handler_datachannel, void *arg
     else if(childpid == 0){
     	printf("Data channel has been created on port %d\n",port);
     	int listenfd_data = Socket(AF_INET, SOCK_STREAM, 0);
+    	datachannel_fd = listenfd_data;
 
 		struct sockaddr_in servaddr_data;
 		Address(&servaddr_data, AF_INET, htonl(INADDR_ANY), htons(port));
@@ -37,6 +41,7 @@ void init_dataconn(int port, int backlog, Handler handler_datachannel, void *arg
     	close(listenfd_data);
     	exit(0);
     }
+    return childpid;
 }
 
 /**
@@ -47,6 +52,7 @@ void init_dataconn(int port, int backlog, Handler handler_datachannel, void *arg
 */
 void handler_datachannel(int listenfd, int clifd, struct sockaddr *cliaddr, void *args[]){
 	// Create node
+	close(listenfd);
 	node client = {clifd, *((SIN*)cliaddr)};
 	
 	// Receive header
@@ -63,6 +69,7 @@ void handler_datachannel(int listenfd, int clifd, struct sockaddr *cliaddr, void
 void receive_file(node *client, Header *header, char *path_prefix){
 	char path[MAXFILENAME];
 	snprintf(path, sizeof(path), "%s%s",path_prefix, header->filename);
+	
 	int wrfd = open(path, O_WRONLY | O_CREAT, 0644);
 	if(wrfd < 0){
 		perror("func_receive_file: file open error");
@@ -71,7 +78,7 @@ void receive_file(node *client, Header *header, char *path_prefix){
 	}
 
 	char ip_str[IPV4_ADDRLEN + 1];
-	printf("Receiving file from ... %s:%d\n",
+	printf("Receiving file from %s:%d\n",
 		inet_ntop(AF_INET, &client->addr.sin_addr, ip_str, sizeof(ip_str)),
 		(int)client->addr.sin_port);
 	printf("Name: %s\tSize: %d\n",path, header->filelen);
@@ -86,7 +93,9 @@ void receive_file(node *client, Header *header, char *path_prefix){
 			close(wrfd);
 			return;
 		}else{
+#ifdef LOG
 			printf("Write to %d byte to file descriptor %d\n",wn, wrfd);
+#endif		
 		}
 	}
 	printf("Receiving compeleted\n");
@@ -124,7 +133,9 @@ void send_file(node *server, int port, char *path){
 		close(rdfd);
 		return;
 	}else{
+#ifdef LOG
 		printf("Write header\n");
+#endif
 	}
 
 	char ip_str[IPV4_ADDRLEN + 1];
@@ -141,7 +152,9 @@ void send_file(node *server, int port, char *path){
 			close(rdfd);
 			return;
 		}else{
+#ifdef LOG
 			printf("Write %d byte\n",wn);
+#endif
 		}
 	}
 

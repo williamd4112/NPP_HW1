@@ -14,6 +14,13 @@
 #define D 3
 #define Q 4
 
+// State
+#define WAIT 0
+#define WAIT_CD_ACK 1
+#define WAIT_LS_ACK 2
+#define WAIT_U_ACK 3
+#define WAIT_D_ACK 4
+
 typedef struct Client{
 	struct node nd;
 	int data_port;
@@ -21,12 +28,12 @@ typedef struct Client{
 }Client;
 
 typedef struct Header{
-	int type;
+	char type;
 	char filename[MAXFILENAME];
 	int filelen;
 }Header;
 
-void init_dataconn(int port, int backlog, Handler handler_datachannel, void *args[]);
+pid_t init_dataconn(int port, int backlog, Handler handler_datachannel, void *args[]);
 void create_sender_node(node *recv_node, sin_addr *addr, int port);
 void receive_file(node*, Header*, char*);
 void send_file(node*, int port, char*);

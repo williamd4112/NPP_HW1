@@ -2,16 +2,24 @@
 #include "filetransfer.h"
 
 #define BACKLOG 10
+#define MAXMSG 1024
 
 extern char output_path[MAXFILENAME];
+extern int datachannel_fd;
+extern const int ACK;
+extern const int NAK;
+
 const char *SERV_OUTPUT_PATH_DEFAULT = "./upload/";
 
 void client_receive_cmd(Client *client);
 void client_receive_info(Client *client);
 void client_send_dir(node *client);
 void client_send_file(Client *client, char *path);
+void client_send_msg(node *client, char *msg);
 
 void func_client_proc(int listenfd, int clifd, struct sockaddr *cliaddr, void *args[]);
+
+int state = WAIT;
 
 int main(int argc, char *argv[]){
 	signal(SIGCHLD, sig_chld);
@@ -20,6 +28,14 @@ int main(int argc, char *argv[]){
 	int listenfd = Socket(AF_INET, SOCK_STREAM, 0);
 
 	struct sockaddr_in servaddr;
+	int flag = 1;
+	
+	if(setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, (char*)&flag, sizeof(int)) < 0){
+		perror("Data Channel initialization error\n");
+		exit(-1);
+	}else
+		puts("Server instruction Channel: Set Resue addr ok\n");
+
 	Address(&servaddr, AF_INET, htonl(INADDR_ANY), htons(SERV_PORT));
     Bind(listenfd, (SA*)&servaddr);
 	Listen(listenfd, BACKLOG);
@@ -53,15 +69,19 @@ void func_client_proc(int listenfd, int clifd, struct sockaddr *cliaddr, void *a
 }
 
 void client_send_dir(node *client){
-    char *path = ".";
+	char *path = ".";
+	char cwd[MAXFILENAME];
+	getcwd(cwd, sizeof(cwd));
+
     DIR *d;
     struct dirent *dir;
     d = opendir(path);
+
     if(d){
         char buff[MAXLINE];
         while((dir = readdir(d)) != NULL){
             if(strcmp(dir->d_name, ".") != 0 && strcmp(dir->d_name, "..") != 0){
-                snprintf(buff, MAXLINE, "%s/%s\n",path, dir->d_name);
+                snprintf(buff, MAXLINE, "%s/%s\n",cwd, dir->d_name);
                 write(client->fd, buff, strlen(buff));
             }
         }
@@ -69,6 +89,13 @@ void client_send_dir(node *client){
     }   
 }
 
+void client_send_msg(node *client, char *msg){
+	int wn = write(client->fd, msg, strlen(msg));
+	if(wn < 0){
+		perror("client_send_msg: failed to send message\n");
+		return;
+	}
+}
 
 void client_receive_info(Client *client){
 	char ip_str[IPV4_ADDRLEN + 1];
@@ -89,22 +116,46 @@ void client_receive_info(Client *client){
 
 void client_receive_cmd(Client *client){
 
+	// Show connection message
 	char ip_str[IPV4_ADDRLEN + 1];
 	printf("Receiving instruction from ... %s:%d\n",
 		inet_ntop(AF_INET, &client->nd.addr.sin_addr, ip_str, sizeof(ip_str)),
 		(int)client->nd.addr.sin_port);
-
+	
+	// Receive command
 	char cmd[CMDLEN];
+
+	// Message buffer
+	char msg_buff[MAXMSG];
+	
+	// Receive state
 	int n;
 	int state = 1; // Enable
-	while((n = read(client->nd.fd, cmd, CMDLEN)) > 0 && state > 0){
+
+	// Main I/O loop
+	while((n = read(client->nd.fd, cmd, CMDLEN)) > 0){
 		cmd[n] = '\0';
-		char* path;
+		
+		char *path;
 		int cmdid = isValid_cmd(cmd);
+
 		if(cmdid >= 0) {
 			switch(cmdid){
 				case LS: 
 					client_send_dir(&client->nd);
+					break;
+				case CD:
+					if((path = fetch_addr(cmd)) != NULL){
+						if(chdir(path) == 0){
+							snprintf(msg_buff, sizeof(msg_buff), "Current Directory: %s",path);
+							client_send_msg(&client->nd, msg_buff);
+						}
+						else{
+							client_send_msg(&client->nd, "No such directory");
+						}
+					}
+					else
+						client_send_msg(&client->nd, "Usage: cd [filename]");
 					break;
 				case U:
 					break;
@@ -116,8 +167,8 @@ void client_receive_cmd(Client *client){
 					break;
 				case Q:
 					printf("Client quit %s:%d\n",ip_str, (int)client->nd.addr.sin_port);
-					state = 0;
-					break;
+					close(client->nd.fd);
+					return;
 				default:
 					break;
 			}
