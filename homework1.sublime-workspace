@@ -4,6 +4,10 @@
 		"selected_items":
 		[
 			[
+				"re",
+				"relative_path"
+			],
+			[
 				"sig_",
 				"sig_chld"
 			],
@@ -312,50 +316,18 @@
 	"buffers":
 	[
 		{
-			"file": "/home/williamd/vim/Network Programming/NPP_HW1-master/src/client.c",
+			"file": "src/server.c",
 			"settings":
 			{
-				"buffer_size": 3741,
+				"buffer_size": 5503,
 				"line_ending": "Unix"
 			}
 		},
 		{
-			"file": "/home/williamd/vim/Network Programming/NPP_HW1-master/src/filetransfer.c",
+			"file": "src/client.c",
 			"settings":
 			{
-				"buffer_size": 5773,
-				"line_ending": "Unix"
-			}
-		},
-		{
-			"file": "/home/williamd/vim/Network Programming/NPP_HW1-master/src/filetransfer.h",
-			"settings":
-			{
-				"buffer_size": 1036,
-				"line_ending": "Unix"
-			}
-		},
-		{
-			"file": "/home/williamd/vim/Network Programming/NPP_HW1-master/src/netio.c",
-			"settings":
-			{
-				"buffer_size": 3355,
-				"line_ending": "Unix"
-			}
-		},
-		{
-			"file": "/home/williamd/vim/Network Programming/NPP_HW1-master/src/netio.h",
-			"settings":
-			{
-				"buffer_size": 1652,
-				"line_ending": "Unix"
-			}
-		},
-		{
-			"file": "/home/williamd/vim/Network Programming/NPP_HW1-master/src/server.c",
-			"settings":
-			{
-				"buffer_size": 4582,
+				"buffer_size": 4229,
 				"line_ending": "Unix"
 			}
 		}
@@ -434,18 +406,18 @@
 	},
 	"file_history":
 	[
+		"/home/williamd/vim/Network Programming/NPP_HW1-master/src/netio.c",
+		"/home/williamd/vim/Network Programming/NPP_HW1-master/src/filetransfer.h",
+		"/home/williamd/vim/Network Programming/NPP_HW1-master/src/filetransfer.c",
+		"/home/williamd/vim/Network Programming/NPP_HW1-master/src/client.c",
+		"/home/williamd/vim/Network Programming/NPP_HW1-master/src/netio.h",
+		"/home/williamd/vim/Network Programming/NPP_HW1-master/src/server.c",
 		"/home/williamd/vim/Network Programming/homework1/src/filetransfer.h",
 		"/home/williamd/vim/Network Programming/homework1/src/filetransfer.c",
 		"/home/williamd/vim/Network Programming/homework1/src/client.c",
 		"/home/williamd/vim/Network Programming/homework1/src/server.c",
-		"/home/williamd/vim/Network Programming/NPP_HW1-master/src/server.c",
 		"/home/williamd/vim/Network Programming/homework1/src/netio.h",
 		"/home/williamd/vim/Network Programming/homework1/src/netio.c",
-		"/home/williamd/vim/Network Programming/NPP_HW1-master/src/netio.h",
-		"/home/williamd/vim/Network Programming/NPP_HW1-master/src/netio.c",
-		"/home/williamd/vim/Network Programming/NPP_HW1-master/src/client.c",
-		"/home/williamd/vim/Network Programming/NPP_HW1-master/src/filetransfer.c",
-		"/home/williamd/vim/Network Programming/NPP_HW1-master/src/filetransfer.h",
 		"/home/williamd/vim/Network Programming/hw1/sysio.h",
 		"/home/williamd/vim/Network Programming/homework1/Makefile",
 		"/home/williamd/vim/Network Programming/hw1/server.c",
@@ -554,6 +526,7 @@
 		"case_sensitive": false,
 		"find_history":
 		[
+			"Option",
 			"create_sender_node",
 			"receive",
 			"state",
@@ -605,54 +578,53 @@
 	"groups":
 	[
 		{
-			"selected": 5,
+			"selected": 0,
 			"sheets":
 			[
 				{
 					"buffer": 0,
-					"file": "/home/williamd/vim/Network Programming/NPP_HW1-master/src/client.c",
+					"file": "src/server.c",
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 3741,
+						"buffer_size": 5503,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								2036,
-								2036
+								4266,
+								4266
 							]
 						],
 						"settings":
 						{
 							"origin_encoding": "ASCII",
-							"syntax": "Packages/C++/C.tmLanguage",
-							"translate_tabs_to_spaces": false
+							"syntax": "Packages/C++/C.tmLanguage"
 						},
 						"translation.x": 0.0,
-						"translation.y": 1338.0,
+						"translation.y": 2934.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 1,
+					"stack_index": 0,
 					"type": "text"
 				},
 				{
 					"buffer": 1,
-					"file": "/home/williamd/vim/Network Programming/NPP_HW1-master/src/filetransfer.c",
+					"file": "src/client.c",
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 5773,
+						"buffer_size": 4229,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								1045,
-								1045
+								2440,
+								2440
 							]
 						],
 						"settings":
@@ -662,128 +634,10 @@
 							"translate_tabs_to_spaces": false
 						},
 						"translation.x": 0.0,
-						"translation.y": 459.0,
+						"translation.y": 538.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 2,
-					"type": "text"
-				},
-				{
-					"buffer": 2,
-					"file": "/home/williamd/vim/Network Programming/NPP_HW1-master/src/filetransfer.h",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 1036,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								767,
-								767
-							]
-						],
-						"settings":
-						{
-							"origin_encoding": "ASCII",
-							"syntax": "Packages/C++/C.tmLanguage"
-						},
-						"translation.x": 0.0,
-						"translation.y": 504.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 3,
-					"type": "text"
-				},
-				{
-					"buffer": 3,
-					"file": "/home/williamd/vim/Network Programming/NPP_HW1-master/src/netio.c",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 3355,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								0,
-								0
-							]
-						],
-						"settings":
-						{
-							"origin_encoding": "ASCII",
-							"syntax": "Packages/C++/C.tmLanguage",
-							"tab_size": 4,
-							"translate_tabs_to_spaces": true
-						},
-						"translation.x": 0.0,
-						"translation.y": 0.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 5,
-					"type": "text"
-				},
-				{
-					"buffer": 4,
-					"file": "/home/williamd/vim/Network Programming/NPP_HW1-master/src/netio.h",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 1652,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								0,
-								0
-							]
-						],
-						"settings":
-						{
-							"origin_encoding": "ASCII",
-							"syntax": "Packages/C++/C.tmLanguage"
-						},
-						"translation.x": -0.0,
-						"translation.y": 630.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 4,
-					"type": "text"
-				},
-				{
-					"buffer": 5,
-					"file": "/home/williamd/vim/Network Programming/NPP_HW1-master/src/server.c",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 4582,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								3040,
-								3040
-							]
-						],
-						"settings":
-						{
-							"origin_encoding": "ASCII",
-							"syntax": "Packages/C++/C.tmLanguage"
-						},
-						"translation.x": 0.0,
-						"translation.y": 1961.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 0,
+					"stack_index": 1,
 					"type": "text"
 				}
 			]

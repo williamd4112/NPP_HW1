@@ -104,7 +104,9 @@ void client_send_dir(node *client){
         while((dir = readdir(d)) != NULL){
             if(strcmp(dir->d_name, ".") != 0 && strcmp(dir->d_name, "..") != 0){
                 snprintf(buff, MAXLINE, "%s/%s\n",cwd, dir->d_name);
-                write(client->fd, buff, strlen(buff));
+                
+                char *relative_path = strrchr(buff, '/');
+                write(client->fd, relative_path, strlen(relative_path));
             }
         }
         closedir(d);
@@ -149,9 +151,9 @@ void client_receive_cmd(Client *client){
 
 	// Show connection message
 	char ip_str[IPV4_ADDRLEN + 1];
-	printf("Receiving instruction from ... %s:%d\n",
+	printf("Receiving instruction from ... %s:%hu\n",
 		inet_ntop(AF_INET, &client->nd.addr.sin_addr, ip_str, sizeof(ip_str)),
-		(int)client->nd.addr.sin_port);
+		ntohs(client->nd.addr.sin_port));
 	
 	// Receive command
 	char cmd[CMDLEN];
@@ -178,15 +180,15 @@ void client_receive_cmd(Client *client){
 				case CD:
 					if((path = fetch_addr(cmd)) != NULL){
 						if(chdir(path) == 0){
-							snprintf(msg_buff, sizeof(msg_buff), "Current Directory: %s",path);
+							snprintf(msg_buff, sizeof(msg_buff), "Current Directory: %s\n",path);
 							client_send_msg(&client->nd, msg_buff);
 						}
 						else{
-							client_send_msg(&client->nd, "No such directory");
+							client_send_msg(&client->nd, "No such directory\n");
 						}
 					}
 					else
-						client_send_msg(&client->nd, "Usage: cd [filename]");
+						client_send_msg(&client->nd, "Usage: cd [filename]\n");
 					break;
 				case U:
 					break;
@@ -197,7 +199,7 @@ void client_receive_cmd(Client *client){
 						printf("usage: u [filename]\n");
 					break;
 				case Q:
-					printf("Client quit %s:%d\n",ip_str, (int)client->nd.addr.sin_port);
+					printf("Client quit %s:%hu\n",ip_str, ntohs(client->nd.addr.sin_port));
 					close(client->nd.fd);
 					return;
 				default:

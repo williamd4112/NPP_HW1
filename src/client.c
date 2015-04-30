@@ -120,6 +120,7 @@ void func_cmd_txt(node *server){
 	struct pollfd pfds[2];
 	pfds[0].fd = fileno(stdin);
 	pfds[0].events = POLLRDNORM;
+
 	pfds[1].fd = server->fd;
 	pfds[1].events = POLLRDNORM;
 
@@ -141,11 +142,13 @@ void func_cmd_txt(node *server){
 			}
 			buff[n] = '\0';
 			printf("%s",buff);
+			fflush(stdout);
 		}
 		// Stdin ready to read
 		else if(pfds[0].revents & POLLRDNORM){
 			char cmd[CMDLEN];
 			char *path;
+					
 			printf("\nOptions:\n%s\n",MAINMENU);
 
 			if(fetch_cmd(cmd, CMDLEN, stdin) == NULL){
